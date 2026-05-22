@@ -1,0 +1,29 @@
+name: "run-audit"
+description: >
+  Run the multi-agent self-healing audit on a proposed patch. Auditor scans
+  for security/drift/regression issues; if any are critical, Architect
+  generates a healed file body and Simulator validates it structurally.
+  Returns a transcript, findings, and (if heal succeeded) the healed content.
+input_schema:
+  type: "object"
+  properties:
+    repo_url:
+      type: "string"
+      description: "The GitHub repository URL"
+    branch:
+      type: "string"
+      description: "Target branch name"
+    file_path:
+      type: "string"
+      description: "Path of the file inside the repo being guarded"
+    diff_content:
+      type: "string"
+      description: "The proposed patch or file body to audit"
+  required:
+    - "repo_url"
+    - "branch"
+    - "file_path"
+    - "diff_content"
+implementation:
+  script: "scripts/run_audit.py"
+  runtime: "python"

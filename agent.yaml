@@ -1,0 +1,27 @@
+name: "git-sense-guard-engine"
+version: "1.1.0"
+description: >
+  Git-native multi-agent self-healing audit. Intercepts proposed patches,
+  runs Auditor → Architect → Simulator, and returns a validated heal or a
+  hard refusal. Compatible with the gitclaw (open-gitagent) runtime.
+
+model: "groq:llama-3.1-8b-instant"
+
+context:
+  files:
+    - "SOUL.md"
+    - "RULES.md"
+    - "DUTIES.md"
+
+tools:
+  - "run-audit"
+  - "self-heal"
+
+skills:
+  - "self-heal"
+
+hooks:
+  config: "hooks/hooks.yaml"
+
+memory:
+  dir: "memory"

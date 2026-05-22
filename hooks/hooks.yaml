@@ -1,0 +1,9 @@
+hooks:
+  - event: "tool:before:run-audit"
+    description: "Log incoming audit invocations for the validation matrix."
+    script: "hooks/log_invocation.sh"
+    runtime: "sh"
+  - event: "tool:after:run-audit"
+    description: "Persist outcome metrics for Six Sigma tracking."
+    script: "hooks/log_outcome.sh"
+    runtime: "sh"

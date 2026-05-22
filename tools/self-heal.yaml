@@ -1,0 +1,22 @@
+name: "self-heal"
+description: >
+  Architect-only patch generation. Given existing Auditor findings, produce a
+  healed file body and run the Simulator. Use this when the audit has already
+  been performed externally and you only need the heal step.
+input_schema:
+  type: "object"
+  properties:
+    file_path:
+      type: "string"
+    diff_content:
+      type: "string"
+    findings:
+      type: "array"
+      description: "Findings produced by a prior run-audit call"
+  required:
+    - "file_path"
+    - "diff_content"
+    - "findings"
+implementation:
+  script: "scripts/run_heal.py"
+  runtime: "python"
