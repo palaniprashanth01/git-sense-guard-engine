@@ -52,6 +52,10 @@ export function AgentConsole() {
 
   const pushHealedFile = async () => {
     if (!result || !result.healed_content) return;
+    if (result.outcome !== 'Self-Healed') {
+      setPushError('Simulator did not certify this heal — push blocked by RULES.md §3.');
+      return;
+    }
     if (!payload.repo_url.trim()) {
       setPushError('Repository URL is required. Enter a real repo you have write access to before pushing.');
       return;
