@@ -46,6 +46,39 @@ export function AgentConsole() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [pushing, setPushing] = useState(false);
+  const [pushSuccess, setPushSuccess] = useState<string | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
+
+  const pushHealedFile = async () => {
+    if (!result || !result.healed_content) return;
+    setPushing(true);
+    setPushSuccess(null);
+    setPushError(null);
+    try {
+      const response = await fetch('http://localhost:8000/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo_url: payload.repo_url || 'https://github.com/palaniprashanth01/git-sense-guard-engine',
+          file_path: payload.file_path,
+          content: result.healed_content,
+          commit_message: `git-sense(heal): automatically remediated Auditor findings in ${payload.file_path}`,
+          branch: payload.branch || 'main'
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to push changes.');
+      }
+      setPushSuccess(data.message || 'Successfully committed and pushed healed changes!');
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : 'Push failed.');
+    } finally {
+      setPushing(false);
+    }
+  };
+
   const runAgentPipeline = async () => {
     setLoading(true);
     setError(null);
@@ -273,9 +306,34 @@ export function AgentConsole() {
               )}
 
               {result.healed_content && (
-                <div>
+                <div className="space-y-2">
                   <div className="text-slate-500 uppercase text-[10px] tracking-widest mb-1">Healed Content</div>
                   <pre className="text-emerald-200 bg-emerald-500/5 border border-emerald-500/20 p-3 rounded text-[11px] overflow-x-auto whitespace-pre-wrap">{result.healed_content}</pre>
+                  
+                  <div className="pt-2">
+                    <button
+                      onClick={pushHealedFile}
+                      disabled={pushing}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-medium text-xs rounded transition-all active:scale-98 cursor-pointer"
+                    >
+                      {pushing ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <GitBranch size={13} />
+                      )}
+                      <span>Push Healed File to Git</span>
+                    </button>
+                    {pushSuccess && (
+                      <div className="mt-2 text-emerald-400 text-xs font-semibold bg-emerald-500/10 border-l-2 border-emerald-500 px-3 py-1.5 rounded-r">
+                        {pushSuccess}
+                      </div>
+                    )}
+                    {pushError && (
+                      <div className="mt-2 text-rose-400 text-xs font-semibold bg-rose-500/10 border-l-2 border-rose-500 px-3 py-1.5 rounded-r">
+                        {pushError}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
