@@ -84,3 +84,9 @@ def test_assert_role_allowed_happy():
     assert_role_allowed("Architect", "patch")
     # Auditor is allowed to audit
     assert_role_allowed("Auditor", "audit")
+
+def test_strip_fences_with_prose():
+    from agents import _strip_fences
+    llm_output = "Here is the code:\n```python\ndef foo():\n    return 42\n```\nNote: this is correct."
+    extracted = _strip_fences(llm_output)
+    assert extracted == "def foo():\n    return 42"

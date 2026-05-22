@@ -100,9 +100,16 @@ def _extract_json(text: str) -> Any:
 
 def _strip_fences(text: str) -> str:
     text = text.strip()
+    # Try to find a code block fenced with ```<lang> ... ```
+    match = re.search(r"```(?:[a-zA-Z0-9_+\-]+)?\n(.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    
+    # Fallback: strip leading/trailing fences if they exist partially
     text = re.sub(r"^```[a-zA-Z0-9_+\-]*\n?", "", text)
     text = re.sub(r"\n?```$", "", text)
-    return text
+    return text.strip()
+
 
 
 def auditor(file_path: str, diff_content: str, events: list[AgentEvent]) -> tuple[str, list[dict]]:
@@ -165,11 +172,20 @@ Constraints (RULES.md):
 - Never include hardcoded secrets / API keys / private keys.
 - Preserve the original intent of the patch.
 - Output ONLY the final file content. No prose. No markdown fences.
+
+CRITICAL SYNTAX & FORMATTING CONSTRAINTS:
+1. Ensure the output is 100% syntactically correct in the file's target language (e.g. valid Python syntax for `.py` files, valid JS for `.js` files).
+2. If any input code or auditor findings contain invalid syntax, such as a raw, unquoted URL or protocol (e.g. `https://github.com/...`) inside an f-string or template expression `{{}}`:
+   - You MUST NOT output it as is.
+   - You MUST quote the URL as a string literal inside the f-string/expression (e.g. `f"<h1>{{'https://github.com/...'}}</h1>"` or `f"<h1>https://github.com/...</h1>"`), or clean up the syntax entirely so that it parses successfully (e.g. `return "<h1>https://github.com/palaniprashanth01/news_summarization_app</h1>"`).
+3. If fixing XSS injection vectors, use safe escaping or proper encoding if possible, or use standard safe strings.
+4. Ensure all braces (`{{` and `}}`), parentheses (`(` and `)`), and quotes are fully balanced and closed correctly. Do not leave any hanging decorators or unclosed expressions.
 """
     raw = _invoke("Architect", q)
     healed = _strip_fences(raw)
     events.append(AgentEvent("Architect", "success", f"Generated {len(healed)} chars of healed content"))
     return healed
+
 
 
 def _check_secrets(content: str) -> str | None:
@@ -257,7 +273,7 @@ def run_self_heal(
         outcome=outcome,
         audit_summary=summary,
         findings=findings,
-        healed_content=healed if sim["passed"] else None,
+        healed_content=healed,
         simulation=sim,
         transcript=[asdict(e) for e in events],
     )

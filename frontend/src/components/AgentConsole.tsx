@@ -52,6 +52,10 @@ export function AgentConsole() {
 
   const pushHealedFile = async () => {
     if (!result || !result.healed_content) return;
+    if (!payload.repo_url.trim()) {
+      setPushError('Repository URL is required. Enter a real repo you have write access to before pushing.');
+      return;
+    }
     setPushing(true);
     setPushSuccess(null);
     setPushError(null);
@@ -60,7 +64,7 @@ export function AgentConsole() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          repo_url: payload.repo_url || 'https://github.com/palaniprashanth01/git-sense-guard-engine',
+          repo_url: payload.repo_url,
           file_path: payload.file_path,
           content: result.healed_content,
           commit_message: `git-sense(heal): automatically remediated Auditor findings in ${payload.file_path}`,
@@ -103,12 +107,14 @@ export function AgentConsole() {
   };
 
   const fillSample = () => {
-    setPayload({
-      repo_url: 'https://github.com/example/demo',
+    // Leave repo_url empty so the demo doesn't accidentally push to a fake repo.
+    // The user fills it in only when they want to exercise the Push step.
+    setPayload((prev) => ({
+      ...prev,
       branch: 'main',
       file_path: 'app/views.py',
       diff_content: SAMPLE_DIFF,
-    });
+    }));
   };
 
   const levelStyle = (lvl: Level) => {
@@ -307,33 +313,59 @@ export function AgentConsole() {
 
               {result.healed_content && (
                 <div className="space-y-2">
-                  <div className="text-slate-500 uppercase text-[10px] tracking-widest mb-1">Healed Content</div>
-                  <pre className="text-emerald-200 bg-emerald-500/5 border border-emerald-500/20 p-3 rounded text-[11px] overflow-x-auto whitespace-pre-wrap">{result.healed_content}</pre>
-                  
-                  <div className="pt-2">
-                    <button
-                      onClick={pushHealedFile}
-                      disabled={pushing}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white font-medium text-xs rounded transition-all active:scale-98 cursor-pointer"
-                    >
-                      {pushing ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <GitBranch size={13} />
-                      )}
-                      <span>Push Healed File to Git</span>
-                    </button>
-                    {pushSuccess && (
-                      <div className="mt-2 text-emerald-400 text-xs font-semibold bg-emerald-500/10 border-l-2 border-emerald-500 px-3 py-1.5 rounded-r">
-                        {pushSuccess}
-                      </div>
-                    )}
-                    {pushError && (
-                      <div className="mt-2 text-rose-400 text-xs font-semibold bg-rose-500/10 border-l-2 border-rose-500 px-3 py-1.5 rounded-r">
-                        {pushError}
-                      </div>
-                    )}
+                  <div className="text-slate-500 uppercase text-[10px] tracking-widest mb-1 font-semibold">
+                    {result.outcome === 'Heal-Failed' ? 'Rejected Healed Content (Simulation Failed)' : 'Healed Content'}
                   </div>
+                  <pre className={`p-3 rounded text-[11px] overflow-x-auto whitespace-pre-wrap border ${
+                    result.outcome === 'Heal-Failed' 
+                      ? 'text-rose-300 bg-rose-500/5 border-rose-500/20' 
+                      : 'text-emerald-200 bg-emerald-500/5 border-emerald-500/20'
+                  }`}>{result.healed_content}</pre>
+                  
+                  {result.outcome === 'Self-Healed' && (
+                    <div className="pt-2">
+                      <button
+                        onClick={pushHealedFile}
+                        disabled={pushing || !payload.repo_url.trim()}
+                        title={!payload.repo_url.trim() ? 'Enter a Repository URL above before pushing' : undefined}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900 disabled:text-emerald-300/50 disabled:cursor-not-allowed text-white font-medium text-xs rounded transition-all active:scale-98 cursor-pointer"
+                      >
+                        {pushing ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <GitBranch size={13} />
+                        )}
+                        <span>Push Healed File to Git</span>
+                      </button>
+                      {pushSuccess && (
+                        <div className="mt-2 text-emerald-400 text-xs font-semibold bg-emerald-500/10 border-l-2 border-emerald-500 px-3 py-1.5 rounded-r">
+                          {pushSuccess}
+                        </div>
+                      )}
+                      {pushError && (
+                        <div className="mt-2 text-rose-400 text-xs font-semibold bg-rose-500/10 border-l-2 border-rose-500 px-3 py-1.5 rounded-r">
+                          {pushError}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {result.outcome === 'Heal-Failed' && (
+                    <div className="bg-rose-500/10 border-l-2 border-rose-500 p-3 rounded-r space-y-1 mt-2 font-mono">
+                      <div className="flex items-center gap-1.5 text-rose-400 font-bold text-[11px]">
+                        <ShieldAlert size={14} />
+                        <span>Simulation Verification Failed</span>
+                      </div>
+                      <p className="text-slate-300 font-sans text-xs">
+                        The healed code generated by the Architect has syntax or safety errors and was blocked from shipping.
+                      </p>
+                      {result.simulation && (result.simulation as any).error && (
+                        <div className="bg-black/40 p-2 rounded border border-rose-500/10 font-mono text-[10px] text-rose-300 whitespace-pre-wrap mt-1">
+                          Error: {(result.simulation as any).error}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

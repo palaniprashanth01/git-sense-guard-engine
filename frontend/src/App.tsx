@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { RepoInput } from './components/RepoInput';
 import { AnalysisResults } from './components/AnalysisResults';
 import { Sparkles, LayoutDashboard, GitBranch, FileCode, AlertTriangle, Lightbulb, GitCommit, FileText, Menu, X, Terminal } from 'lucide-react';
