@@ -100,13 +100,13 @@ function App() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                disabled={item.id !== 'agent-console' && !analysisData}
+                disabled={item.id !== 'agent-console' && item.id !== 'overview' && !analysisData}
                 className={clsx(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer",
                   activeTab === item.id
                     ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]"
                     : "text-gray-400 hover:bg-white/5 hover:text-white",
-                  (item.id !== 'agent-console' && !analysisData) && "opacity-50 cursor-not-allowed"
+                  (item.id !== 'agent-console' && item.id !== 'overview' && !analysisData) && "opacity-50 cursor-not-allowed"
                 )}
               >
                 {item.icon}

@@ -27,7 +27,7 @@ app.add_middleware(
 results_store = {}
 
 def clean_json_string(json_str: str) -> str:
-    """Removes markdown code blocks and extracts JSON list."""
+    """Removes markdown code blocks and extracts JSON."""
     print(f"DEBUG: Raw JSON string length: {len(json_str)}")
     
     # Try to find JSON block in markdown
@@ -37,30 +37,49 @@ def clean_json_string(json_str: str) -> str:
         # Take the longest match which is likely the main content
         json_str = max(matches, key=len)
     
-    # Locate the outer-most list brackets []
-    start = json_str.find("[")
-    end = json_str.rfind("]")
-    
-    if start != -1 and end != -1:
-        return json_str[start : end + 1]
-    
-    # Fallback: if no list found, try to find { } for single object
+    # Prioritize outer-most object {} or list [] depending on what appears first
+    start_list = json_str.find("[")
     start_obj = json_str.find("{")
-    end_obj = json_str.rfind("}")
-    if start_obj != -1 and end_obj != -1:
-        return json_str[start_obj : end_obj + 1]
+    
+    if start_obj != -1 and (start_list == -1 or start_obj < start_list):
+        # We have an object starting before a list, or no list at all
+        end_obj = json_str.rfind("}")
+        if end_obj != -1:
+            return json_str[start_obj : end_obj + 1]
+            
+    if start_list != -1:
+        # We have a list
+        end_list = json_str.rfind("]")
+        if end_list != -1:
+            return json_str[start_list : end_list + 1]
+            
+    # Fallback to single objects if still not matched
+    if start_obj != -1:
+        end_obj = json_str.rfind("}")
+        if end_obj != -1:
+            return json_str[start_obj : end_obj + 1]
 
     return json_str.strip()
 
 def parse_json_safely(json_str: str):
-    """Tries to parse JSON, falling back to ast.literal_eval."""
+    """Tries to parse JSON, falling back to ast.literal_eval. Handles key extraction from dicts."""
     cleaned = clean_json_string(json_str)
     try:
-        return json.loads(cleaned, strict=False)
+        parsed = json.loads(cleaned, strict=False)
+        if isinstance(parsed, dict):
+            for k in ["bugs", "suggestions", "file_summaries"]:
+                if k in parsed and isinstance(parsed[k], list):
+                    return parsed[k]
+        return parsed
     except json.JSONDecodeError:
         try:
             # Fallback for Python-style dicts/lists (single quotes)
-            return ast.literal_eval(cleaned)
+            parsed = ast.literal_eval(cleaned)
+            if isinstance(parsed, dict):
+                for k in ["bugs", "suggestions", "file_summaries"]:
+                    if k in parsed and isinstance(parsed[k], list):
+                        return parsed[k]
+            return parsed
         except (ValueError, SyntaxError):
             print(f"Failed to parse JSON: {cleaned[:100]}...")
             return []
