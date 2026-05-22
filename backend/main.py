@@ -184,13 +184,28 @@ async def agent_audit(request: AuditRequest):
     Auditor → (gate) → Architect → Simulator. Returns the full transcript so
     the UI can render the validation matrix and the gitclaw tool runner can
     forward outcomes back to the agent."""
+    diff_content = request.diff_content
+    if not diff_content.strip():
+        print(f"diff_content is empty. Dynamically fetching {request.file_path} from {request.repo_url}...")
+        try:
+            diff_content = await asyncio.to_thread(
+                git_utils.fetch_file_content,
+                request.repo_url,
+                request.file_path,
+                request.branch,
+            )
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch file from repository: {e}")
+
     try:
         result = await asyncio.to_thread(
             agents.run_self_heal,
             request.repo_url,
             request.branch,
             request.file_path,
-            request.diff_content,
+            diff_content,
         )
     except PermissionError as e:
         # Conflict matrix violation — surface as 403 so the agent can recover.

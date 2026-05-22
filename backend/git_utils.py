@@ -62,3 +62,31 @@ def push_file(repo_url: str, file_path: str, content: str, commit_message: str, 
         return False, str(e)
     finally:
         shutil.rmtree(temp_dir)
+
+
+def fetch_file_content(repo_url: str, file_path: str, branch_name: str = "main") -> str:
+    """
+    Clones the repository temporarily and reads the requested file content.
+    """
+    temp_dir = tempfile.mkdtemp()
+    print(f"Cloning {repo_url} to {temp_dir} to fetch file content...")
+    try:
+        # Clone with depth=1 for speed
+        repo = Repo.clone_from(repo_url, temp_dir, depth=1)
+        
+        # Checkout the branch
+        if branch_name in repo.references:
+            repo.git.checkout(branch_name)
+        else:
+            # Try to fetch and checkout if it is a remote branch
+            repo.git.checkout(branch_name)
+            
+        full_path = os.path.join(temp_dir, file_path)
+        if not os.path.exists(full_path):
+            raise FileNotFoundError(f"File '{file_path}' not found in repository branch '{branch_name}'.")
+            
+        with open(full_path, "r", encoding="utf-8") as f:
+            return f.read()
+    finally:
+        shutil.rmtree(temp_dir)
+
