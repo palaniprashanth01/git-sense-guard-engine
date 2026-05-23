@@ -90,3 +90,94 @@ def test_strip_fences_with_prose():
     llm_output = "Here is the code:\n```python\ndef foo():\n    return 42\n```\nNote: this is correct."
     extracted = _strip_fences(llm_output)
     assert extracted == "def foo():\n    return 42"
+
+
+# ---------- memory_store tests ----------
+
+def _isolated_history(tmp_path, monkeypatch):
+    """Point memory_store at a tmp file so tests don't pollute real memory/."""
+    import memory_store
+    tmp_history = tmp_path / "audit_history.jsonl"
+    monkeypatch.setattr(memory_store, "HISTORY_PATH", str(tmp_history))
+    return memory_store, tmp_history
+
+
+def test_memory_recall_empty(tmp_path, monkeypatch):
+    memory_store, _ = _isolated_history(tmp_path, monkeypatch)
+    assert memory_store.recall_history("app/views.py") == []
+
+
+def test_memory_append_then_recall(tmp_path, monkeypatch):
+    memory_store, _ = _isolated_history(tmp_path, monkeypatch)
+    memory_store.append_outcome(
+        file_path="app/views.py",
+        outcome="Heal-Failed",
+        summary="Architect output failed AST parse",
+        findings=[{"severity": "high", "category": "security", "evidence": "x", "rationale": "y"}],
+        simulation={"passed": False, "error": "SyntaxError: unexpected token"},
+    )
+    memory_store.append_outcome(
+        file_path="other/path.py",  # different file — should be filtered out
+        outcome="Clean",
+        summary="ok",
+        findings=[],
+        simulation={"skipped": True},
+    )
+    history = memory_store.recall_history("app/views.py")
+    assert len(history) == 1
+    assert history[0]["outcome"] == "Heal-Failed"
+    assert history[0]["finding_categories"] == ["security"]
+    assert history[0]["simulation_error"].startswith("SyntaxError")
+
+
+def test_memory_recall_respects_limit(tmp_path, monkeypatch):
+    memory_store, _ = _isolated_history(tmp_path, monkeypatch)
+    for i in range(8):
+        memory_store.append_outcome(
+            file_path="app/x.py",
+            outcome="Clean",
+            summary=f"run {i}",
+            findings=[],
+            simulation={"skipped": True},
+        )
+    history = memory_store.recall_history("app/x.py", limit=3)
+    assert len(history) == 3
+    assert history[-1]["summary"] == "run 7"  # newest
+
+
+def test_memory_recall_tolerates_corrupt_lines(tmp_path, monkeypatch):
+    memory_store, tmp_history = _isolated_history(tmp_path, monkeypatch)
+    memory_store.append_outcome(
+        file_path="app/x.py",
+        outcome="Clean",
+        summary="good",
+        findings=[],
+        simulation={"skipped": True},
+    )
+    # Inject a corrupt line manually
+    with open(tmp_history, "a") as f:
+        f.write("not valid json at all\n")
+    memory_store.append_outcome(
+        file_path="app/x.py",
+        outcome="Self-Healed",
+        summary="after garbage",
+        findings=[],
+        simulation={"passed": True},
+    )
+    history = memory_store.recall_history("app/x.py")
+    assert len(history) == 2  # corrupt line skipped
+    assert history[-1]["outcome"] == "Self-Healed"
+
+
+def test_format_history_for_prompt():
+    from memory_store import format_history_for_prompt
+    rendered = format_history_for_prompt([
+        {"ts": "2026-05-22T12:00:00Z", "outcome": "Heal-Failed",
+         "finding_categories": ["security", "drift"],
+         "simulation_error": "SyntaxError"},
+    ])
+    assert "Heal-Failed" in rendered
+    assert "security" in rendered
+    assert "SyntaxError" in rendered
+
+    assert format_history_for_prompt([]) == ""

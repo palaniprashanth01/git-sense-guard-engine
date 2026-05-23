@@ -1,14 +1,20 @@
 # Git Sense — Multi-Agent Self-Healing Guard Engine
 
+> **TL;DR.** Three agents (Auditor → Architect → Simulator) gate every code
+> change. Auditor ⊥ Architect is enforced in code. The Simulator runs no LLM —
+> just AST / JSON / YAML parse + secret scan — so "Self-Healed" actually means
+> the patch is syntactically valid and leak-free. Audit history is
+> git-committed and read back into the next Auditor's context, so the agent
+> learns from its own scar tissue. Built on the **GitAgent (gitclaw)** spec.
+
+> 🎥 Demo: *<add Loom link>* &nbsp;·&nbsp; 📐 Design: [ARCHITECTURE.md](./ARCHITECTURE.md) &nbsp;·&nbsp; 🧪 Tests: `pytest backend/test_agents.py` (18 passing)
+
 **Git Sense** is a **GitAgent (gitclaw)-native** multi-agent system that
 intercepts proposed patches, runs a self-healing audit pipeline
 (**Auditor → Architect → Simulator**), and either certifies the change as
 clean or returns a structurally-validated heal. The agent's identity, rules,
 tools, hooks, and memory live as files in this repo — `gitclaw --dir .` runs
 it natively.
-
-> Built for the **open-gitagent / gitagent** challenge.
-> Full system design: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## What it does
 1. You propose a patch (or paste a file body) for a guarded file.

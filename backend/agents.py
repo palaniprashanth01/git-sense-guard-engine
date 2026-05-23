@@ -29,6 +29,7 @@ from langchain_groq import ChatGroq
 
 from agent_runtime import assert_role_allowed, build_system_prompt
 from analysis import get_current_api_key, rotate_api_key
+from memory_store import append_outcome, format_history_for_prompt, recall_history
 
 CRITICAL_SEVERITIES = {"high", "critical"}
 SECRET_PATTERNS = [
@@ -112,15 +113,38 @@ def _strip_fences(text: str) -> str:
 
 
 
-def auditor(file_path: str, diff_content: str, events: list[AgentEvent]) -> tuple[str, list[dict]]:
+def auditor(
+    file_path: str,
+    diff_content: str,
+    events: list[AgentEvent],
+    prior_history: list[dict] | None = None,
+) -> tuple[str, list[dict]]:
     events.append(AgentEvent("Auditor", "info", f"Scanning proposed patch for {file_path}"))
+
+    history_block = ""
+    prior_history = prior_history or []
+    if prior_history:
+        prior_failed = [h for h in prior_history if h.get("outcome") == "Heal-Failed"]
+        history_block = (
+            f"\n<prior_audits>\n{format_history_for_prompt(prior_history)}\n</prior_audits>\n"
+            "Treat this history as load-bearing context. If similar findings or "
+            "simulation errors recurred previously, raise severity by one tier and "
+            "explain explicitly that this is a repeat pattern.\n"
+        )
+        events.append(AgentEvent(
+            "Auditor",
+            "info",
+            f"Conditioned on {len(prior_history)} prior audits of this file "
+            f"({len(prior_failed)} heal-failures recalled from memory)",
+        ))
+
     q = f"""You are reviewing a proposed change for compliance and safety.
 
 <target_file>{file_path}</target_file>
 <proposed_patch>
 {diff_content}
 </proposed_patch>
-
+{history_block}
 Identify: hardcoded secrets, injection vectors (SQL/XSS/command), semantic prompt
 drift (instructions leaking into context, role confusion), regressions vs. the
 file's purpose, and any RULES.md violations.
@@ -247,12 +271,20 @@ def run_self_heal(
     events.append(AgentEvent("Runtime", "info", "Conflict matrix active: Auditor ⊥ Architect"))
     events.append(AgentEvent("Runtime", "info", f"Target: {repo_url}@{branch} :: {file_path}"))
 
-    summary, findings = auditor(file_path, diff_content, events)
+    prior_history = recall_history(file_path)
+    if prior_history:
+        events.append(AgentEvent(
+            "Runtime",
+            "info",
+            f"Recalled {len(prior_history)} prior audit(s) from memory/audit_history.jsonl",
+        ))
+
+    summary, findings = auditor(file_path, diff_content, events, prior_history=prior_history)
     critical = [f for f in findings if str(f.get("severity", "")).lower() in CRITICAL_SEVERITIES]
 
     if not critical:
         events.append(AgentEvent("Runtime", "success", "Pipeline outcome: Clean (no heal needed)"))
-        return PipelineResult(
+        result = PipelineResult(
             outcome="Clean",
             audit_summary=summary,
             findings=findings,
@@ -260,6 +292,8 @@ def run_self_heal(
             simulation={"skipped": True},
             transcript=[asdict(e) for e in events],
         )
+        _persist_outcome(file_path, result)
+        return result
 
     healed = architect(file_path, diff_content, findings, events)
     sim = simulate(file_path, healed, events)
@@ -269,7 +303,7 @@ def run_self_heal(
         "success" if sim["passed"] else "error",
         f"Pipeline outcome: {outcome}",
     ))
-    return PipelineResult(
+    result = PipelineResult(
         outcome=outcome,
         audit_summary=summary,
         findings=findings,
@@ -277,3 +311,19 @@ def run_self_heal(
         simulation=sim,
         transcript=[asdict(e) for e in events],
     )
+    _persist_outcome(file_path, result)
+    return result
+
+
+def _persist_outcome(file_path: str, result: PipelineResult) -> None:
+    """Best-effort write to memory/audit_history.jsonl. Never raises."""
+    try:
+        append_outcome(
+            file_path=file_path,
+            outcome=result.outcome,
+            summary=result.audit_summary,
+            findings=result.findings,
+            simulation=result.simulation,
+        )
+    except Exception as e:  # noqa: BLE001 — memory write must never break the pipeline
+        print(f"memory_store: failed to persist outcome: {e}")

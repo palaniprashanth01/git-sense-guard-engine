@@ -129,9 +129,31 @@ refusal, not a silent bypass.
 6. UI shows the full transcript, findings, healed content, and validation matrix.
 7. (Optional) Click **Push to Git** to commit the healed file via `/push`.
 
+## Memory is load-bearing, not decorative
+
+Every run of `/api/agent/audit` appends a record to `memory/audit_history.jsonl`
+via [`memory_store.append_outcome`](backend/memory_store.py). On the *next*
+run, the Auditor's pipeline calls `recall_history(file_path)` and injects up
+to 5 prior records into its prompt as a `<prior_audits>` block:
+
+```
+Prior audits of this file (newest last):
+  • 2026-05-22T13:14:47Z  outcome=Heal-Failed  categories=[security]  — sim error: SyntaxError: …
+  • 2026-05-22T13:18:02Z  outcome=Self-Healed  categories=[security]
+```
+
+The Auditor is instructed to raise severity by one tier if a recurring
+pattern shows up. This is what makes the "agent IS the repo" claim
+load-bearing — because `memory/audit_history.jsonl` is git-committed, a fork
+of the agent inherits its scar tissue. Forks aren't fresh; they're conditioned.
+
+The `hooks/log_invocation.sh` and `hooks/log_outcome.sh` hooks (gitclaw
+lifecycle) also append to `memory/invocations.log` and `memory/outcomes.log`
+when the tool is driven through gitclaw — same data, different file format,
+human-greppable.
+
 ## What's *not* in scope
 - We don't fork the gitclaw runtime — we conform to its file layout so it
   drives our agent. The HTTP path exists for the human UI and CI hooks.
-- Memory is on-disk append-only logs (`memory/invocations.log`,
-  `memory/outcomes.log`). Embeddings live in `backend/chroma_db/` for the
-  separate repo-analysis flow, not for agent memory.
+- Embeddings live in `backend/chroma_db/` for the separate repo-analysis
+  flow, not for agent memory. Agent memory is the JSONL audit history above.
