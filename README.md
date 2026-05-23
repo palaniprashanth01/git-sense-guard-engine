@@ -7,7 +7,7 @@
 > git-committed and read back into the next Auditor's context, so the agent
 > learns from its own scar tissue. Built on the **GitAgent (gitclaw)** spec.
 
-> 🎥 Demo: *<add Loom link>* &nbsp;·&nbsp; 📐 Design: [ARCHITECTURE.md](./ARCHITECTURE.md) &nbsp;·&nbsp; 🧪 Tests: `pytest backend/test_agents.py` (18 passing)
+> 📐 Design: [ARCHITECTURE.md](./ARCHITECTURE.md) &nbsp;·&nbsp; 🧪 Tests: `pytest backend/test_agents.py` (18 passing)
 
 **Git Sense** is a **GitAgent (gitclaw)-native** multi-agent system that
 intercepts proposed patches, runs a self-healing audit pipeline
